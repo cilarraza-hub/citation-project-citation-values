@@ -85,6 +85,16 @@
       border-color: #1f6feb;
     }
 
+    /* Ensure prompt text matches the answer box font */
+    /* Buttons don't always inherit the page font consistently across browsers,
+       so we explicitly align the textbox and answer font properties. */
+    .textbox, .answer {
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 1.35;
+    }
+
     /* Drop targets: NO visible placeholder boxes.
        Center contents vertically and add padding so the green/pink container
        shows around the floating answer box. */
