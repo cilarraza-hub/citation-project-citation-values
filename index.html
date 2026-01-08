@@ -1,0 +1,36 @@
+function checkAnswers(){
+  clearPickedUp();
+
+  const zones = Array.from(document.querySelectorAll(".dropzone"));
+  let anyIncorrect = false;
+
+  zones.forEach((z) => {
+    const answer = z.querySelector(".answer");
+    const correct = z.dataset.correct;
+    const badge = z.querySelector(".badge");
+
+    z.classList.remove("correct","incorrect");
+    badge.classList.remove("ok","no");
+    badge.textContent = "";
+    badge.style.display = "inline-block"; // show on check
+
+    if(answer && answer.dataset.answer === correct){
+      z.classList.add("correct");
+      badge.classList.add("ok");
+      badge.textContent = "Correct";
+    } else {
+      anyIncorrect = true;
+      z.classList.add("incorrect");
+      badge.classList.add("no");
+      badge.textContent = "Needs revision";
+    }
+  });
+
+  if(anyIncorrect){
+    resultEl.textContent = "Checked. Review the rows marked “Needs revision”.";
+    resultEl.style.color = "#b00020";
+  } else {
+    resultEl.textContent = "Checked. All matches are correct (green).";
+    resultEl.style.color = "#0a8a0a";
+  }
+}
