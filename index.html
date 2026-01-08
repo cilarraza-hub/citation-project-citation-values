@@ -1,36 +1,449 @@
-function checkAnswers(){
-  clearPickedUp();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matching Activity</title>
+  <style>
+    /* Match the look/feel of your highlighter prototype */
+    body { font-family: Arial, sans-serif; margin: 20px; }
 
-  const zones = Array.from(document.querySelectorAll(".dropzone"));
-  let anyIncorrect = false;
+    h2 { margin: 0 0 8px 0; }
+    p { margin: 0 0 12px 0; line-height: 1.35; }
 
-  zones.forEach((z) => {
-    const answer = z.querySelector(".answer");
-    const correct = z.dataset.correct;
-    const badge = z.querySelector(".badge");
-
-    z.classList.remove("correct","incorrect");
-    badge.classList.remove("ok","no");
-    badge.textContent = "";
-    badge.style.display = "inline-block"; // show on check
-
-    if(answer && answer.dataset.answer === correct){
-      z.classList.add("correct");
-      badge.classList.add("ok");
-      badge.textContent = "Correct";
-    } else {
-      anyIncorrect = true;
-      z.classList.add("incorrect");
-      badge.classList.add("no");
-      badge.textContent = "Needs revision";
+    /* Button + feedback (copied from your prototype) */
+    .btn {
+      display:inline-block;
+      margin-top:12px;
+      margin-right:8px;
+      padding:10px 14px;
+      border:0;
+      border-radius:8px;
+      background:#1f6feb;
+      color:#fff;
+      font-weight:600;
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
+      cursor:pointer;
     }
-  });
+    .btn:hover { filter: brightness(1.05); }
 
-  if(anyIncorrect){
-    resultEl.textContent = "Checked. Review the rows marked “Needs revision”.";
-    resultEl.style.color = "#b00020";
-  } else {
-    resultEl.textContent = "Checked. All matches are correct (green).";
-    resultEl.style.color = "#0a8a0a";
-  }
-}
+    #result { margin-top:10px; min-height: 20px; font-weight: 600; }
+
+    /* Layout */
+    .panel {
+      border: 1px solid #ccc;
+      background: #fafafa;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .colhead {
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .rows {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    /* Text boxes */
+    .textbox {
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 8px;
+      background: #fff;
+      white-space: normal;
+      line-height: 1.35;
+    }
+    .promptbox { background: #fff; }
+
+    /* Answer boxes (draggable floating boxes) */
+    .answer {
+      width: 100%;
+      text-align: left;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 8px;
+      background: #fff;
+      cursor: grab;
+      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    }
+    .answer:active { cursor: grabbing; }
+    .answer.selected {
+      outline: 3px solid rgba(31,111,235,.35);
+      border-color: #1f6feb;
+    }
+
+    /* Drop targets: NO visible placeholder boxes.
+       Center contents vertically and add padding so the green/pink container
+       shows around the floating answer box. */
+    .dropzone {
+      border: none;
+      background: transparent;
+      padding: 8px;
+      border-radius: 8px;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dropzone.over {
+      background: #f0f6ff;
+      outline: 2px dashed #1f6feb;
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    /* Correct/incorrect highlighting */
+    .correct {
+      background-color: #D9FDD3 !important; /* your green */
+      border-color: #7dbb73 !important;
+    }
+    .incorrect {
+      background-color: #FDE2E7 !important; /* light pink */
+      border-color: #d27a8a !important;
+    }
+
+    /* Badge = non-color indicator (hidden until check) */
+    .badge {
+      display: none;              /* hidden by default */
+      margin-left: 8px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid #ccc;
+      background: #fff;
+      vertical-align: middle;
+      white-space: nowrap;
+      align-self: center;
+    }
+    .badge.ok { border-color: #7dbb73; }
+    .badge.no { border-color: #d27a8a; }
+
+    /* Small helper text */
+    .hint {
+      color: #333;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 900px){
+      .grid, .rows { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Matching Activity</h2>
+  <p><strong>Instructions:</strong> Match each statement (left) with the correct value (right).
+    Drag the value boxes in the right column to the correct row.
+    <br />
+    <span class="hint"><strong>Keyboard-friendly option:</strong> Click a value to “pick it up,” then click the row you want to place it in.</span>
+  </p>
+
+  <button class="btn" id="checkBtn" type="button">Check answers</button>
+  <button class="btn" id="resetBtn" type="button">Reset</button>
+  <div id="result" aria-live="polite"></div>
+
+  <div class="panel">
+    <div class="grid">
+      <div><div class="colhead">Citation convention</div></div>
+      <div><div class="colhead">Academic or social value</div></div>
+    </div>
+
+    <div class="rows" id="rows"></div>
+  </div>
+
+  <script>
+    // Text from your uploaded table (Section 7.1)
+    const PAIRS = [
+      {
+        left: "Attributing sources to author names (rather than to presses or journal titles)",
+        right: "Highlighting people and our relationships to knowledge producers"
+      },
+      {
+        left: "Accurate and specific placement of in-text citations",
+        right: "Attributing ideas to those who wrote them"
+      },
+      {
+        left: "Carefully punctuating quotations",
+        right: "Transparency so the reader knows how precisely the original ideas are being conveyed"
+      },
+      {
+        left: "Paraphrasing rather than patchwriting (insert hyperlink to GWWC handout)",
+        right: "Honoring the contextualized ideas of writers"
+      },
+      {
+        left: "Including page numbers when citing specific parts of a source",
+        right: "Sharing knowledge so the reader can follow up and understand the original setting"
+      },
+      {
+        left: "Consistency in author names in the text and the bibliography",
+        right: "Transparency so the reader can find a source"
+      },
+      {
+        left: "Including all names of multiple authors and maintaining the original order",
+        right: "Author order is determined by level of contribution; multi-authored sources are not attributable to a single person"
+      },
+      {
+        left: "Using brackets when removing or changing words/phrases in a quoted passage",
+        right: "Maintaining accuracy and avoiding misleading the reader"
+      }
+    ];
+
+    const rowsEl   = document.getElementById("rows");
+    const resultEl = document.getElementById("result");
+    const checkBtn = document.getElementById("checkBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    // click-to-place accessibility state
+    let pickedUp = null;
+
+    // drag source tracking (for clean swapping)
+    let dragSourceZone = null;
+
+    function shuffle(arr){
+      const a = arr.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [a[i],a[j]] = [a[j],a[i]];
+      }
+      return a;
+    }
+
+    function clearPickedUp(){
+      if(pickedUp){
+        pickedUp.classList.remove("selected");
+        pickedUp = null;
+      }
+    }
+
+    function makeAnswer(text){
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "answer";
+      btn.textContent = text;
+      btn.draggable = true;
+      btn.dataset.answer = text;
+
+      btn.addEventListener("dragstart", (e) => {
+        dragSourceZone = btn.closest(".dropzone");
+        e.dataTransfer.setData("text/plain", text);
+        e.dataTransfer.effectAllowed = "move";
+        clearPickedUp();
+      });
+
+      btn.addEventListener("dragend", () => {
+        dragSourceZone = null;
+      });
+
+      btn.addEventListener("click", () => {
+        if(pickedUp === btn){
+          clearPickedUp();
+          resultEl.textContent = "";
+        } else {
+          clearPickedUp();
+          pickedUp = btn;
+          pickedUp.classList.add("selected");
+          resultEl.textContent = "Value selected. Click the row you want to place it in.";
+          resultEl.style.color = "#111";
+        }
+      });
+
+      return btn;
+    }
+
+    function makeDropzone(index, correctText){
+      const dz = document.createElement("div");
+      dz.className = "dropzone";
+      dz.dataset.index = index;
+      dz.dataset.correct = correctText;
+
+      // badge for non-color feedback (hidden until check)
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = "";
+      badge.id = `badge-${index}`;
+      dz.appendChild(badge);
+
+      dz.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dz.classList.add("over");
+      });
+      dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+
+      dz.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dz.classList.remove("over");
+        const text = e.dataTransfer.getData("text/plain");
+        const dragged = findAnswerByText(text);
+        if(dragged) placeAnswerInZone(dz, dragged, dragSourceZone);
+      });
+
+      // click-to-place support
+      dz.addEventListener("click", () => {
+        if(pickedUp){
+          const sourceZone = pickedUp.closest(".dropzone");
+          placeAnswerInZone(dz, pickedUp, sourceZone);
+          resultEl.textContent = "Placed. You can select another value.";
+          resultEl.style.color = "#111";
+          clearPickedUp();
+        }
+      });
+
+      return dz;
+    }
+
+    function findAnswerByText(text){
+      return document.querySelector(`.answer[data-answer="${cssEscape(text)}"]`);
+    }
+    function cssEscape(s){
+      return (s || "").replace(/\\/g,"\\\\").replace(/"/g,'\\"');
+    }
+
+    function clearFeedback(zone){
+      zone.classList.remove("correct","incorrect");
+      const badge = zone.querySelector(".badge");
+      if(badge){
+        badge.textContent = "";
+        badge.classList.remove("ok","no");
+        badge.style.display = "none";
+      }
+    }
+
+    function placeAnswerInZone(targetZone, answerEl, sourceZone){
+      const targetExisting = targetZone.querySelector(".answer");
+      const source = sourceZone && sourceZone.classList.contains("dropzone") ? sourceZone : null;
+
+      // If dropping onto a different zone and it's occupied -> swap
+      if(targetExisting && targetExisting !== answerEl){
+        if(source){
+          // swap: move targetExisting back to source
+          const sourceBadge = source.querySelector(".badge");
+          source.insertBefore(targetExisting, sourceBadge); // place before badge
+          clearFeedback(source);
+        }
+      }
+
+      // Move answer into target
+      const targetBadge = targetZone.querySelector(".badge");
+      targetZone.insertBefore(answerEl, targetBadge);
+      clearFeedback(targetZone);
+
+      // If we moved something out of the source zone (and it wasn't swapped in), clear feedback there too
+      if(source && source !== targetZone){
+        clearFeedback(source);
+      }
+    }
+
+    function render(){
+      rowsEl.innerHTML = "";
+
+      // Build left prompts + right dropzones
+      PAIRS.forEach((pair, i) => {
+        const prompt = document.createElement("div");
+        prompt.className = "textbox promptbox";
+        prompt.textContent = pair.left;
+
+        const dz = makeDropzone(i, pair.right);
+
+        rowsEl.appendChild(prompt);
+        rowsEl.appendChild(dz);
+      });
+
+      // Scatter answers across the right column by placing shuffled answers into each dropzone
+      const shuffledAnswers = shuffle(PAIRS.map(p => p.right));
+      const zones = Array.from(document.querySelectorAll(".dropzone"));
+      zones.forEach((z, i) => {
+        const badge = z.querySelector(".badge");
+        const ans = makeAnswer(shuffledAnswers[i]);
+        z.insertBefore(ans, badge);
+        clearFeedback(z);
+      });
+    }
+
+    function clearAllFeedback(){
+      resultEl.textContent = "";
+      resultEl.style.color = "#111";
+      clearPickedUp();
+      document.querySelectorAll(".dropzone").forEach(z => {
+        z.classList.remove("over");
+        clearFeedback(z);
+      });
+    }
+
+    function checkAnswers(){
+      clearPickedUp();
+
+      const zones = Array.from(document.querySelectorAll(".dropzone"));
+      let anyIncorrect = false;
+
+      zones.forEach((z) => {
+        const answer = z.querySelector(".answer");
+        const correct = z.dataset.correct;
+        const badge = z.querySelector(".badge");
+
+        z.classList.remove("correct","incorrect");
+        badge.classList.remove("ok","no");
+        badge.textContent = "";
+        badge.style.display = "inline-block"; // show on check
+
+        if(answer && answer.dataset.answer === correct){
+          z.classList.add("correct");
+          badge.classList.add("ok");
+          badge.textContent = "Correct";
+        } else {
+          anyIncorrect = true;
+          z.classList.add("incorrect");
+          badge.classList.add("no");
+          badge.textContent = "Needs revision";
+        }
+      });
+
+      if(anyIncorrect){
+        resultEl.textContent = "Checked. Review the rows marked “Needs revision”.";
+        resultEl.style.color = "#b00020";
+      } else {
+        resultEl.textContent = "Checked. All matches are correct (green).";
+        resultEl.style.color = "#0a8a0a";
+      }
+    }
+
+    function resetAll(){
+      clearAllFeedback();
+
+      // Remove answers
+      document.querySelectorAll(".dropzone .answer").forEach(a => a.remove());
+
+      // Re-scatter answers across right column
+      const shuffled = shuffle(PAIRS.map(p => p.right));
+      const zones = Array.from(document.querySelectorAll(".dropzone"));
+      zones.forEach((z, i) => {
+        const badge = z.querySelector(".badge");
+        const ans = makeAnswer(shuffled[i]);
+        z.insertBefore(ans, badge);
+        clearFeedback(z);
+      });
+
+      resultEl.textContent = "Reset complete. Drag values to reorder them.";
+      resultEl.style.color = "#111";
+    }
+
+    checkBtn.addEventListener("click", checkAnswers);
+    resetBtn.addEventListener("click", resetAll);
+
+    render();
+  </script>
+</body>
+</html>
