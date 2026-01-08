@@ -8,9 +8,6 @@
     /* Match the look/feel of your highlighter prototype */
     body { font-family: Arial, sans-serif; margin: 20px; }
 
-    h2 { margin: 0 0 8px 0; }
-    p { margin: 0 0 12px 0; line-height: 1.35; }
-
     /* Button + feedback (copied from your prototype) */
     .btn {
       display:inline-block;
@@ -65,6 +62,9 @@
       background: #fff;
       white-space: normal;
       line-height: 1.35;
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 400;
     }
     .promptbox { background: #fff; }
 
@@ -78,6 +78,16 @@
       background: #fff;
       cursor: grab;
       box-shadow: 0 2px 6px rgba(0,0,0,.08);
+
+      /* Make button text match left boxes exactly */
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.35;
+      font-weight: 400;
+
+      /* Remove default button styling differences across browsers */
+      -webkit-appearance: none;
+      appearance: none;
     }
     .answer:active { cursor: grabbing; }
     .answer.selected {
@@ -85,19 +95,7 @@
       border-color: #1f6feb;
     }
 
-    /* Ensure prompt text matches the answer box font */
-    /* Buttons don't always inherit the page font consistently across browsers,
-       so we explicitly align the textbox and answer font properties. */
-    .textbox, .answer {
-      font-family: inherit;
-      font-size: 16px;
-      font-weight: 400;
-      line-height: 1.35;
-    }
-
-    /* Drop targets: NO visible placeholder boxes.
-       Center contents vertically and add padding so the green/pink container
-       shows around the floating answer box. */
+    /* Drop targets: center contents vertically and add padding so the green/pink container shows */
     .dropzone {
       border: none;
       background: transparent;
@@ -127,7 +125,7 @@
 
     /* Badge = non-color indicator (hidden until check) */
     .badge {
-      display: none;              /* hidden by default */
+      display: none;
       margin-left: 8px;
       padding: 3px 8px;
       border-radius: 999px;
@@ -141,13 +139,6 @@
     .badge.ok { border-color: #7dbb73; }
     .badge.no { border-color: #d27a8a; }
 
-    /* Small helper text */
-    .hint {
-      color: #333;
-      font-size: 14px;
-      margin-top: 8px;
-    }
-
     @media (max-width: 900px){
       .grid, .rows { grid-template-columns: 1fr; }
     }
@@ -155,13 +146,6 @@
 </head>
 
 <body>
-  <h2>Matching Activity</h2>
-  <p><strong>Instructions:</strong> Match each statement (left) with the correct value (right).
-    Drag the value boxes in the right column to the correct row.
-    <br />
-    <span class="hint"><strong>Keyboard-friendly option:</strong> Click a value to “pick it up,” then click the row you want to place it in.</span>
-  </p>
-
   <button class="btn" id="checkBtn" type="button">Check answers</button>
   <button class="btn" id="resetBtn" type="button">Reset</button>
   <div id="result" aria-live="polite"></div>
@@ -176,7 +160,8 @@
   </div>
 
   <script>
-    // Text from your uploaded table (Section 7.1)
+    // Text from your uploaded table (Section 7.1), with requested edit applied:
+    // removed "(insert hyperlink to GWWC handout)"
     const PAIRS = [
       {
         left: "Attributing sources to author names (rather than to presses or journal titles)",
@@ -191,7 +176,7 @@
         right: "Transparency so the reader knows how precisely the original ideas are being conveyed"
       },
       {
-        left: "Paraphrasing rather than patchwriting (insert hyperlink to GWWC handout)",
+        left: "Paraphrasing rather than patchwriting",
         right: "Honoring the contextualized ideas of writers"
       },
       {
@@ -258,16 +243,14 @@
         dragSourceZone = null;
       });
 
+      // keep click-to-place support (hidden UI text removed, but functionality stays)
       btn.addEventListener("click", () => {
         if(pickedUp === btn){
           clearPickedUp();
-          resultEl.textContent = "";
         } else {
           clearPickedUp();
           pickedUp = btn;
           pickedUp.classList.add("selected");
-          resultEl.textContent = "Value selected. Click the row you want to place it in.";
-          resultEl.style.color = "#111";
         }
       });
 
@@ -306,8 +289,6 @@
         if(pickedUp){
           const sourceZone = pickedUp.closest(".dropzone");
           placeAnswerInZone(dz, pickedUp, sourceZone);
-          resultEl.textContent = "Placed. You can select another value.";
-          resultEl.style.color = "#111";
           clearPickedUp();
         }
       });
@@ -339,9 +320,8 @@
       // If dropping onto a different zone and it's occupied -> swap
       if(targetExisting && targetExisting !== answerEl){
         if(source){
-          // swap: move targetExisting back to source
           const sourceBadge = source.querySelector(".badge");
-          source.insertBefore(targetExisting, sourceBadge); // place before badge
+          source.insertBefore(targetExisting, sourceBadge);
           clearFeedback(source);
         }
       }
@@ -351,7 +331,6 @@
       targetZone.insertBefore(answerEl, targetBadge);
       clearFeedback(targetZone);
 
-      // If we moved something out of the source zone (and it wasn't swapped in), clear feedback there too
       if(source && source !== targetZone){
         clearFeedback(source);
       }
@@ -407,7 +386,7 @@
         z.classList.remove("correct","incorrect");
         badge.classList.remove("ok","no");
         badge.textContent = "";
-        badge.style.display = "inline-block"; // show on check
+        badge.style.display = "inline-block";
 
         if(answer && answer.dataset.answer === correct){
           z.classList.add("correct");
